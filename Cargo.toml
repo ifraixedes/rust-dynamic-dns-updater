@@ -1,0 +1,13 @@
+[package]
+name = "dynamic-dns-updater"
+version = "0.1.0"
+authors = ["Ivan Fraixedes <ivan@fraixed.es>"]
+edition = "2018"
+description = "command line tool for updating IP addresses of several dynamic DNS providers"
+license-file = "LICENSE"
+keywords = ["dynamic-dns"]
+categories = ["command-line-utilities"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
