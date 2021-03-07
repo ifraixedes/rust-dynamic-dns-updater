@@ -2,12 +2,19 @@
 name = "dynamic-dns-updater"
 version = "0.1.0"
 authors = ["Ivan Fraixedes <ivan@fraixed.es>"]
-edition = "2018"
+edition = "2021"
 description = "command line tool for updating IP addresses of several dynamic DNS providers"
 license-file = "LICENSE"
 keywords = ["dynamic-dns"]
 categories = ["command-line-utilities"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+http = "~0.2.4"
+isahc = "~1.5.1"
+lazy_static = "~1.4.0"
+regex = "~1.4.2"
+url = "~2.2.0"
+
+[dev-dependencies]
+tokio = { version = "1.13.0", features = ["macros"] }
+wiremock = "~0.5.8"
