@@ -1,15 +1,16 @@
-pub mod error;
 pub mod duckdns;
+pub mod error;
 
-use error::Error;
+pub use error::Error;
 
+#[derive(Debug)]
 pub struct Response<'a> {
-    http_status_code: http_types::StatusCode,
     result_msg: &'a str,
     updated: Option<bool>,
 }
 
 impl<'a> Response<'a> {
+    /*
     // Construct a Response based on the provider returned HTTP Status code, a
     // result message and if the IP has been updated or not.
     // updated is an option because only some providers provide that information
@@ -28,10 +29,7 @@ impl<'a> Response<'a> {
             updated,
         }
     }
-
-    pub fn is_ok(&self) -> bool {
-        self.http_status_code.is_success()
-    }
+    */
 
     pub fn result_msg(&self) -> &'a str {
         self.result_msg
@@ -48,4 +46,4 @@ impl<'a> Response<'a> {
     }
 }
 
-pub type UpdateResult<'a> = Result<Response<'a>, Error>;
+pub type UpdateResult<'a> = Result<Response<'a>, Error<'a>>;
