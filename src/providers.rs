@@ -1,3 +1,5 @@
+//! Available supported dynamic DNS providers.
+
 pub mod duckdns;
 mod error;
 
