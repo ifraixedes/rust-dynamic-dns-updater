@@ -2,6 +2,7 @@
 
 #![deny(missing_docs)]
 
+mod error;
 mod providers;
 
 #[allow(unused_imports)]

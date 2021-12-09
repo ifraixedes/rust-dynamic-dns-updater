@@ -1,6 +1,8 @@
-use super::error::{Args as ErrArgs, BoxError, Provider as ErrProvider};
-use super::Error;
+//! Implementation for using with Duck DNS services.
+
+use super::error::{Error, Provider as ErrProvider};
 use super::{Response, UpdateResult};
+use crate::error::{Args as ErrArgs, BoxError, Error as ErrorCommon};
 
 use std::net;
 
@@ -22,13 +24,12 @@ pub struct Updater<'a> {
 }
 
 impl<'a> Updater<'a> {
-    /// Create an updater for Duck DNS using the specified API token.
+    /// Creates a Duck DNS updater using the specified API token.
     pub fn new(token: &'a str) -> Self {
         Self::new_with_base_url(token, "https://www.duckdns.org/update?verbose=true")
     }
 
-    /// Create an updater for Duck DNS using the specified API token and base
-    /// URL.
+    /// Creates a Duck DNS updater using the specified API token and base URL.
     /// This constructor is mainly useful for testing purposes.
     fn new_with_base_url(token: &'a str, base_url: &'a str) -> Self {
         let http_cli = isahc::HttpClientBuilder::new()
@@ -61,10 +62,10 @@ impl<'a> Updater<'a> {
         params.push(Self::domains_as_param(domains)?);
 
         if ipv4.is_none() && ipv6.is_none() {
-            return Err(Error::new_invalid_arguments(
+            return Err(Error::Common(ErrorCommon::new_invalid_arguments(
                 "(ipv4,ipv6)",
                 "at least one IP (V4 or V6) must be specified, both cannot be None",
-            ));
+            )));
         }
 
         if let Some(ip) = ipv4 {
@@ -89,10 +90,10 @@ impl<'a> Updater<'a> {
         }
 
         let body: String = response.text().await.map_err(|err| {
-            Error::new_internal(
+            Error::Common(ErrorCommon::new_internal(
                 "error while reading the response body as text",
                 BoxError::from(err),
-            )
+            ))
         })?;
 
         match Self::parse_response_body(&body) {
@@ -107,15 +108,18 @@ impl<'a> Updater<'a> {
     /// DNS.
     fn domains_as_param<'b, 'c>(domains: &'b [&str]) -> Result<(&'static str, String), Error<'c>> {
         if domains.is_empty() {
-            return Err(Error::new_invalid_arguments(
+            return Err(Error::Common(ErrorCommon::new_invalid_arguments(
                 "domains",
                 "domains cannot be empty, it must contain at least one domain name",
-            ));
+            )));
         }
 
         match Self::validate_domain(domains[0]) {
-            Err(Error::InvalidArguments(ErrArgs { msg, .. })) => {
-                return Err(Error::new_invalid_arguments("domains[0]", &msg));
+            Err(Error::Common(ErrorCommon::InvalidArguments(ErrArgs { msg, .. }))) => {
+                return Err(Error::Common(ErrorCommon::new_invalid_arguments(
+                    "domains[0]",
+                    &msg,
+                )));
             }
             Err(e) => panic!("Self::validate_domain returned an unexpected error: {}", e),
             Ok(_) => {}
@@ -134,9 +138,12 @@ impl<'a> Updater<'a> {
                         idx += 1;
                         Ok(acc)
                     }
-                    Err(Error::InvalidArguments(ErrArgs { msg, .. })) => Err(
-                        Error::new_invalid_arguments(&format!("domains[{}]", idx), &msg),
-                    ),
+                    Err(Error::Common(ErrorCommon::InvalidArguments(ErrArgs { msg, .. }))) => {
+                        Err(Error::Common(ErrorCommon::new_invalid_arguments(
+                            &format!("domains[{}]", idx),
+                            &msg,
+                        )))
+                    }
                     Err(e) => panic!("Self::validate_domain returned an unexpected error: {}", e),
                 },
             )?;
@@ -154,10 +161,10 @@ impl<'a> Updater<'a> {
 
         if !RE.is_match(domain) {
             return Err(
-                Error::new_invalid_arguments(
+                Error::Common(ErrorCommon::new_invalid_arguments(
                     "domain",
                     "a domain name can only contain 'a-z', '0-9' and '-' case insensitive characters and must have at least one character",
-                ),
+                )),
             );
         }
 
@@ -254,7 +261,7 @@ mod test {
 
         let updater = Updater::new(TOKEN);
         for (i, t) in err_invalid_args_tests.iter().enumerate() {
-            if let Error::InvalidArguments(ErrArgs { names, msg }) = updater
+            if let Error::Common(ErrorCommon::InvalidArguments(ErrArgs { names, msg })) = updater
                 .update_record_a((t.0).0.as_slice(), (t.0).1, (t.0).2)
                 .await
                 .expect_err(t.3)
@@ -284,8 +291,8 @@ mod test {
             .await
             .expect_err("network error expected for a domain that cannot be resolved");
 
-        if let Error::Network(err_net) = err {
-            use super::super::error::NetworkSide;
+        if let Error::Common(ErrorCommon::Network(err_net)) = err {
+            use crate::error::NetworkSide;
             use std::error::Error;
 
             println!("{:?}", err_net.source());
@@ -582,7 +589,7 @@ mod test {
             ];
 
         for (i, t) in err_tests.iter().enumerate() {
-            if let Error::InvalidArguments(ErrArgs { names, msg }) =
+            if let Error::Common(ErrorCommon::InvalidArguments(ErrArgs { names, msg })) =
                 Updater::domains_as_param(t.0.as_slice()).expect_err(t.3)
             {
                 if t.1 < 0 {
@@ -610,7 +617,7 @@ mod test {
             .iter()
             .enumerate()
         {
-            if let Error::InvalidArguments(ErrArgs { names, msg }) =
+            if let Error::Common(ErrorCommon::InvalidArguments(ErrArgs { names, msg })) =
                 Updater::validate_domain(val).expect_err("empty string is an invalid domain name")
             {
                 assert_eq!(names, String::from("domain"), "test: {}", i);
