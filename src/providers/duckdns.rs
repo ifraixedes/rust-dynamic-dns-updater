@@ -1,7 +1,7 @@
 //! Implementation for using with Duck DNS services.
 
 use super::error::{Error, Provider as ErrProvider};
-use super::{Response, UpdateResult};
+use super::Response;
 use crate::error::{Args as ErrArgs, BoxError, Error as ErrorCommon};
 
 use std::net;
@@ -57,7 +57,7 @@ impl<'a> Updater<'a> {
         domains: &[&str],
         ipv4: Option<net::Ipv4Addr>,
         ipv6: Option<net::Ipv6Addr>,
-    ) -> UpdateResult<'b> {
+    ) -> Result<Response, Error<'a>> {
         let mut params = Vec::with_capacity(3);
         params.push(Self::domains_as_param(domains)?);
 

@@ -21,5 +21,3 @@ impl Response {
         self.updated
     }
 }
-
-type UpdateResult<'a> = Result<Response, Error<'a>>;
