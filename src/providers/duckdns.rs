@@ -210,6 +210,7 @@ enum ResponseBody {
 #[cfg(test)]
 mod test {
     use super::*;
+    use tokio;
     use wiremock::matchers::{method, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -220,8 +221,6 @@ mod test {
         let u = Updater::new(TOKEN);
         assert_eq!(u.token, TOKEN);
     }
-
-    use tokio;
 
     #[tokio::test]
     async fn test_update_record_a_invalid_params() {
