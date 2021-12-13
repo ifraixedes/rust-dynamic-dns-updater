@@ -19,14 +19,14 @@ pub type BoxError = Box<dyn stderr::Error + Send + Sync>;
 #[non_exhaustive]
 #[derive(Debug)]
 pub enum Error<'a> {
-    /// Identify unexpected errors which happen because of the state of the
+    /// Identifies unexpected errors which happen because of the state of the
     /// system where the application is running, for example, insufficient
     /// resources, OS failures, etc.
     Internal(Internal<'a>),
-    /// Identify errors due to invalid arguments passed to function or methods
+    /// Identifies errors due to invalid arguments passed to function or methods
     /// or assigned values to configurations.
     InvalidArguments(Args),
-    /// Identify errors related with the network produced by the client or
+    /// Identifies errors related with the network produced by the client or
     /// server side and informs to retry or not the operation.
     /// NOTE use an exponential back-off when retrying any operation after
     /// receiving this error indicating to retry it.
@@ -223,21 +223,33 @@ impl fmt::Display for NetworkSide {
     }
 }
 
-#[derive(Debug, PartialEq)]
-/// An error returned by the provider when performing a requested operation.
-pub enum Provider {
-    /// Indicates that the provider has returned an internal error.
-    Internal,
-    /// Indicates that the provider has returned an errors which isn't currently
-    /// specified in its API documentation.
+/// An basic error for handling external services errors reported when
+/// performing a requested operation.
+/// Error types that needs to return errors of a service can use it:
+/// * When the service doesn't provide more details about their errors.
+/// * For creating a new type to represent all its specific errors extending
+///   these ones.
+#[non_exhaustive]
+#[derive(Debug)]
+pub enum ExternalService {
+    /// Indicates that the external service has returned an internal error.
+    /// The `reason` field should contain a message with the reason why the
+    /// error happened.
+    Internal { reason: String },
+    /// Indicates that the external service has returned an errors which isn't
+    /// currently specified in its documentation.
     Unspecified,
 }
 
-impl fmt::Display for Provider {
+impl fmt::Display for ExternalService {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
-            Provider::Internal => write!(f, "service had an internal error"),
-            Provider::Unspecified => write!(f, "service reported an unspecified error"),
+            ExternalService::Internal { reason } => {
+                write!(f, "external service had an internal error. {}", reason)
+            }
+            ExternalService::Unspecified => {
+                write!(f, "external service reported an unspecified error")
+            }
         }
     }
 }

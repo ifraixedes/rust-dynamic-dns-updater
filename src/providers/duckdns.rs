@@ -1,8 +1,8 @@
 //! Implementation for using with Duck DNS services.
 
-use super::error::{Error, Provider as ErrProvider};
+use super::error::Error;
 use super::Response;
-use crate::error::{Args as ErrArgs, BoxError, Error as ErrorCommon};
+use crate::error::{Args as ErrArgs, BoxError, Error as ErrorCommon, ExternalService};
 
 use std::net;
 
@@ -86,7 +86,12 @@ impl<'a> Updater<'a> {
             .map_err(Error::from_isahc)?;
 
         if response.status() != http::StatusCode::OK {
-            return Err(Error::Provider(ErrProvider::Internal));
+            return Err(Error::Provider(ExternalService::Internal {
+                reason: format!(
+                    r#"Duck DNS service has responded with an HTTP "{}" status code (expected 200)"#,
+                    response.status(),
+                ),
+            }));
         }
 
         let body: String = response.text().await.map_err(|err| {
@@ -100,7 +105,7 @@ impl<'a> Updater<'a> {
             ResponseBody::Success(updated) => Ok(Response {
                 updated: Some(updated),
             }),
-            ResponseBody::Failed => Err(Error::Provider(ErrProvider::Unspecified)),
+            ResponseBody::Failed => Err(Error::Provider(ExternalService::Unspecified)),
         }
     }
 
@@ -321,14 +326,18 @@ mod test {
 
         let uri = server.uri();
         let updater = Updater::with_base_url(TOKEN, &uri);
-        if let Error::Provider(p) = updater
+        if let Error::Provider(ExternalService::Internal { reason }) = updater
             .update_record_a(vec![domain].as_slice(), Some(ip), None)
             .await
             .expect_err("HTTP 500 status must return an error")
         {
-            assert_eq!(p, ErrProvider::Internal, "expected provider internal error",);
+            assert_eq!(
+                reason,
+                r#"Duck DNS service has responded with an HTTP "500 Internal Server Error" status code (expected 200)"#,
+                "expected provider internal error",
+            );
         } else {
-            panic!("expected a provider error");
+            panic!("expected a provider internal error");
         }
     }
 
@@ -352,11 +361,10 @@ mod test {
             .await
             .expect_err("HTTP 200  status with KO body message must return an error")
         {
-            assert_eq!(
-                p,
-                ErrProvider::Unspecified,
-                "expected provider unspecified error",
-            );
+            match p {
+                ExternalService::Unspecified => {}
+                _ => panic!("expected a provider unspecified error"),
+            };
         } else {
             panic!("expected a provider error");
         }

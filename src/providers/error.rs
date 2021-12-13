@@ -2,7 +2,7 @@
 //! The error type extends the [common error type](crate::error) to provide
 //! kinds of errors to their specific domain.
 
-use crate::error::{Error as ErrorCommon, NetworkSide};
+use crate::error::{Error as ErrorCommon, ExternalService, NetworkSide};
 
 use std::error as stderr;
 use std::fmt;
@@ -18,10 +18,10 @@ pub enum Error<'a> {
     /// crate.
     Common(ErrorCommon<'a>),
     /// Identifies error returned by the provider.
-    Provider(Provider),
+    Provider(ExternalService),
 }
 
-impl<'a> Error<'a> {
+impl Error<'_> {
     /// Convenient constructor for creating the appropriated Error from the
     /// Error type of the isahc module.
     pub(super) fn from_isahc(err: IsahcError) -> Self {
@@ -30,7 +30,7 @@ impl<'a> Error<'a> {
         match err.kind() {
                 ErrorKind::BadServerCertificate | ErrorKind::InvalidContentEncoding
                     | ErrorKind::ProtocolViolation =>
-                    Error::Provider(Provider::Internal),
+                    Error::Provider(ExternalService::Internal{ reason:  err.to_string()} ),
                 ErrorKind::ConnectionFailed | ErrorKind::Timeout => {
                     let side = if err.is_client() { NetworkSide::Client } else { NetworkSide::Server };
                     Error::Common(ErrorCommon::network(err.into(), side, true))
@@ -43,8 +43,9 @@ impl<'a> Error<'a> {
                     }
                 }
                 // NameResolution error is returned indicating that's a server
-                // side error when the host name cannot be resolved, hence we
-                // don't check if the error is client or server.
+                // side error when the host name cannot be resolved, but we
+                // don't consider it that should be a server side error, hence
+                // we always indicate that's a client side error.
                 ErrorKind::NameResolution => Error::Common(ErrorCommon::network(err.into(), NetworkSide::Client, false)),
                 ErrorKind::BadClientCertificate | ErrorKind::ClientInitialization
                    | ErrorKind::InvalidCredentials | ErrorKind::TlsEngine => {
@@ -53,10 +54,10 @@ impl<'a> Error<'a> {
                     }
                 ErrorKind::InvalidRequest => panic!("BUG: client created an invalid request. {}", err),
                 ErrorKind::RequestBodyNotRewindable => panic!(
-                    "BUG (please report it): this error was not expected if it happens it has to be managed by this implementation. {}",
+                    "BUG (please report it): this error should not happen if the implementation is correct. {}",
                     err),
                 ErrorKind::TooManyRedirects => panic!(
-                    "BUG (please report it): this provider implementation is outdated. {}",
+                    "BUG (please report it): this implementation is outdated, the external service has changed its public API. {}",
                     err),
                 _ =>  panic!(
                     "BUG (please report it): outdated implementation, isahc dependency has been updated but this implementation has not been updated properly to match the new 'error kinds'. {} ",
@@ -78,26 +79,7 @@ impl<'a> fmt::Display for Error<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
             Error::Common(c) => c.fmt(f),
-            Error::Provider(p) => p.fmt(f),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-/// An error returned by the provider when performing a requested operation.
-pub enum Provider {
-    /// Indicates that the provider has returned an internal error.
-    Internal,
-    /// Indicates that the provider has returned an errors which isn't currently
-    /// specified in its API documentation.
-    Unspecified,
-}
-
-impl fmt::Display for Provider {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        match self {
-            Provider::Internal => write!(f, "service had an internal error"),
-            Provider::Unspecified => write!(f, "service reported an unspecified error"),
+            Error::Provider(es) => es.fmt(f),
         }
     }
 }
