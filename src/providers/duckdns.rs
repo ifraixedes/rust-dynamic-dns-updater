@@ -57,7 +57,7 @@ impl<'a> Updater<'a> {
         domains: &[&str],
         ipv4: Option<net::Ipv4Addr>,
         ipv6: Option<net::Ipv6Addr>,
-    ) -> Result<Response, Error<'a>> {
+    ) -> Result<Response, Error<'b>> {
         let mut params = Vec::with_capacity(3);
         params.push(Self::domains_as_param(domains)?);
 
