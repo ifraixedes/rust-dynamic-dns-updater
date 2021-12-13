@@ -26,12 +26,12 @@ pub struct Updater<'a> {
 impl<'a> Updater<'a> {
     /// Creates a Duck DNS updater using the specified API token.
     pub fn new(token: &'a str) -> Self {
-        Self::new_with_base_url(token, "https://www.duckdns.org/update?verbose=true")
+        Self::with_base_url(token, "https://www.duckdns.org/update?verbose=true")
     }
 
     /// Creates a Duck DNS updater using the specified API token and base URL.
     /// This constructor is mainly useful for testing purposes.
-    fn new_with_base_url(token: &'a str, base_url: &'a str) -> Self {
+    fn with_base_url(token: &'a str, base_url: &'a str) -> Self {
         let http_cli = isahc::HttpClientBuilder::new()
             .max_connections(2)
             .connection_cache_size(2)
@@ -280,7 +280,7 @@ mod test {
 
     #[tokio::test]
     async fn test_update_record_a_domain_do_not_resolve() {
-        let updater = Updater::new_with_base_url(TOKEN, "https://duckdns.test/update?verbose=true");
+        let updater = Updater::with_base_url(TOKEN, "https://duckdns.test/update?verbose=true");
         let err = updater
             .update_record_a(
                 &["a-valid-domain"],
@@ -320,7 +320,7 @@ mod test {
             .await;
 
         let uri = server.uri();
-        let updater = Updater::new_with_base_url(TOKEN, &uri);
+        let updater = Updater::with_base_url(TOKEN, &uri);
         if let Error::Provider(p) = updater
             .update_record_a(vec![domain].as_slice(), Some(ip), None)
             .await
@@ -346,7 +346,7 @@ mod test {
             .await;
 
         let uri = server.uri();
-        let updater = Updater::new_with_base_url(TOKEN, &uri);
+        let updater = Updater::with_base_url(TOKEN, &uri);
         if let Error::Provider(p) = updater
             .update_record_a(vec![domain].as_slice(), Some(ip), None)
             .await
@@ -379,7 +379,7 @@ mod test {
                 .await;
 
             let uri = server.uri();
-            let updater = Updater::new_with_base_url(TOKEN, &uri);
+            let updater = Updater::with_base_url(TOKEN, &uri);
             let resp = updater
                 .update_record_a(vec![domain].as_slice(), Some(ip), None)
                 .await
@@ -405,7 +405,7 @@ mod test {
                 .await;
 
             let uri = server.uri();
-            let updater = Updater::new_with_base_url(TOKEN, &uri);
+            let updater = Updater::with_base_url(TOKEN, &uri);
             let resp = updater
                 .update_record_a(vec![domain].as_slice(), None, Some(ip))
                 .await
@@ -436,7 +436,7 @@ mod test {
                 .await;
 
             let uri = server.uri();
-            let updater = Updater::new_with_base_url(TOKEN, &uri);
+            let updater = Updater::with_base_url(TOKEN, &uri);
             let resp = updater
                 .update_record_a(vec![domain].as_slice(), Some(ipv4), Some(ipv6))
                 .await
@@ -462,7 +462,7 @@ mod test {
                 .await;
 
             let uri = server.uri();
-            let updater = Updater::new_with_base_url(TOKEN, &uri);
+            let updater = Updater::with_base_url(TOKEN, &uri);
             let resp = updater
                 .update_record_a(vec![domain].as_slice(), Some(ip), None)
                 .await
@@ -488,7 +488,7 @@ mod test {
                 .await;
 
             let uri = server.uri();
-            let updater = Updater::new_with_base_url(TOKEN, &uri);
+            let updater = Updater::with_base_url(TOKEN, &uri);
             let resp = updater
                 .update_record_a(vec![domain].as_slice(), None, Some(ip))
                 .await
@@ -519,7 +519,7 @@ mod test {
                 .await;
 
             let uri = server.uri();
-            let updater = Updater::new_with_base_url(TOKEN, &uri);
+            let updater = Updater::with_base_url(TOKEN, &uri);
             let resp = updater
                 .update_record_a(vec![domain].as_slice(), Some(ipv4), Some(ipv6))
                 .await
