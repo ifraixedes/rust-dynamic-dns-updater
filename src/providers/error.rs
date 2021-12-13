@@ -33,23 +33,23 @@ impl<'a> Error<'a> {
                     Error::Provider(Provider::Internal),
                 ErrorKind::ConnectionFailed | ErrorKind::Timeout => {
                     let side = if err.is_client() { NetworkSide::Client } else { NetworkSide::Server };
-                    Error::Common(ErrorCommon::new_network(err.into(), side, true))
+                    Error::Common(ErrorCommon::network(err.into(), side, true))
                 }
                 ErrorKind::Io => {
                     if err.is_client() {
-                        Error::Common(ErrorCommon::new_network(err.into(), NetworkSide::Client , false))
+                        Error::Common(ErrorCommon::network(err.into(), NetworkSide::Client , false))
                     } else {
-                        Error::Common(ErrorCommon::new_network(err.into(), NetworkSide::Server , true))
+                        Error::Common(ErrorCommon::network(err.into(), NetworkSide::Server , true))
                     }
                 }
                 // NameResolution error is returned indicating that's a server
                 // side error when the host name cannot be resolved, hence we
                 // don't check if the error is client or server.
-                ErrorKind::NameResolution => Error::Common(ErrorCommon::new_network(err.into(), NetworkSide::Client, false)),
+                ErrorKind::NameResolution => Error::Common(ErrorCommon::network(err.into(), NetworkSide::Client, false)),
                 ErrorKind::BadClientCertificate | ErrorKind::ClientInitialization
                    | ErrorKind::InvalidCredentials | ErrorKind::TlsEngine => {
                        let side = if err.is_client() { NetworkSide::Client } else { NetworkSide::Server };
-                       Error::Common(ErrorCommon::new_network(err.into(), side, false))
+                       Error::Common(ErrorCommon::network(err.into(), side, false))
                     }
                 ErrorKind::InvalidRequest => panic!("BUG: client created an invalid request. {}", err),
                 ErrorKind::RequestBodyNotRewindable => panic!(

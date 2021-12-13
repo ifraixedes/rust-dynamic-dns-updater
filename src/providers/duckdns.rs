@@ -62,7 +62,7 @@ impl<'a> Updater<'a> {
         params.push(Self::domains_as_param(domains)?);
 
         if ipv4.is_none() && ipv6.is_none() {
-            return Err(Error::Common(ErrorCommon::new_invalid_arguments(
+            return Err(Error::Common(ErrorCommon::invalid_arguments(
                 "(ipv4,ipv6)",
                 "at least one IP (V4 or V6) must be specified, both cannot be None",
             )));
@@ -90,7 +90,7 @@ impl<'a> Updater<'a> {
         }
 
         let body: String = response.text().await.map_err(|err| {
-            Error::Common(ErrorCommon::new_internal(
+            Error::Common(ErrorCommon::internal(
                 "error while reading the response body as text",
                 BoxError::from(err),
             ))
@@ -108,7 +108,7 @@ impl<'a> Updater<'a> {
     /// DNS.
     fn domains_as_param<'b, 'c>(domains: &'b [&str]) -> Result<(&'static str, String), Error<'c>> {
         if domains.is_empty() {
-            return Err(Error::Common(ErrorCommon::new_invalid_arguments(
+            return Err(Error::Common(ErrorCommon::invalid_arguments(
                 "domains",
                 "domains cannot be empty, it must contain at least one domain name",
             )));
@@ -116,7 +116,7 @@ impl<'a> Updater<'a> {
 
         match Self::validate_domain(domains[0]) {
             Err(Error::Common(ErrorCommon::InvalidArguments(ErrArgs { msg, .. }))) => {
-                return Err(Error::Common(ErrorCommon::new_invalid_arguments(
+                return Err(Error::Common(ErrorCommon::invalid_arguments(
                     "domains[0]",
                     &msg,
                 )));
@@ -139,7 +139,7 @@ impl<'a> Updater<'a> {
                         Ok(acc)
                     }
                     Err(Error::Common(ErrorCommon::InvalidArguments(ErrArgs { msg, .. }))) => {
-                        Err(Error::Common(ErrorCommon::new_invalid_arguments(
+                        Err(Error::Common(ErrorCommon::invalid_arguments(
                             &format!("domains[{}]", idx),
                             &msg,
                         )))
@@ -161,7 +161,7 @@ impl<'a> Updater<'a> {
 
         if !RE.is_match(domain) {
             return Err(
-                Error::Common(ErrorCommon::new_invalid_arguments(
+                Error::Common(ErrorCommon::invalid_arguments(
                     "domain",
                     "a domain name can only contain 'a-z', '0-9' and '-' case insensitive characters and must have at least one character",
                 )),

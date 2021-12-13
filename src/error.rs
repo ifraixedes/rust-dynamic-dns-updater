@@ -38,12 +38,12 @@ impl<'a> Error<'a> {
     /// See [`Args`] documentation to know about the convention for the value of
     /// the `names` parameter because this constructor panics if they are
     /// violated.
-    pub(crate) fn new_invalid_arguments(names: &str, msg: &str) -> Self {
+    pub(crate) fn invalid_arguments(names: &str, msg: &str) -> Self {
         Self::InvalidArguments(Args::new(names, msg))
     }
 
     /// Convenient constructor for creating a Network Error.
-    pub(crate) fn new_network(origin: BoxError, side: NetworkSide, should_retry: bool) -> Self {
+    pub(crate) fn network(origin: BoxError, side: NetworkSide, should_retry: bool) -> Self {
         Self::Network(Network {
             side,
             should_retry,
@@ -52,7 +52,7 @@ impl<'a> Error<'a> {
     }
 
     /// Convenient constructor for creating an Internal Error.
-    pub(crate) fn new_internal(ctx_msg: &'a str, error: BoxError) -> Self {
+    pub(crate) fn internal(ctx_msg: &'a str, error: BoxError) -> Self {
         Self::Internal(Internal { ctx_msg, error })
     }
 }
