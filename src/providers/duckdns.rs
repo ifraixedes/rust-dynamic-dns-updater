@@ -6,8 +6,6 @@ use crate::error::{Args as ErrArgs, BoxError, Error as ErrorCommon, ExternalServ
 
 use std::net;
 
-use http;
-use isahc;
 use isahc::AsyncReadResponseExt;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -94,7 +92,7 @@ impl<'a> Updater<'a> {
             }));
         }
 
-        let body: String = response.text().await.map_err(|err| {
+        let body = response.text().await.map_err(|err| {
             Error::Common(ErrorCommon::internal(
                 "error while reading the response body as text",
                 BoxError::from(err),
@@ -193,8 +191,8 @@ impl<'a> Updater<'a> {
         }
 
         panic!(
-            r#"unexpected duckdns response body, got: "{}".
-This may happen because duckdns has changed the format of the response body and this implementation hasn't been updated, please report to the maintainers."#,
+            r#"unexpected Duck DNS response body, got: "{}".
+This may happen because Duck DNS has changed the format of the response body and this implementation hasn't been updated, please report to the maintainers."#,
             body
         );
     }
@@ -715,7 +713,7 @@ NOCHANGE",
 
     #[test]
     #[should_panic(
-        expected = "unexpected duckdns response body, got: \"NOTGOOD\n100.25.35.6\n0:0:4700:0:0:FFFF:0119:2306\nNOCHANGE\".\nThis may happen because duckdns has changed the format of the response body and this implementation hasn't been updated, please report to the maintainers."
+        expected = "unexpected Duck DNS response body, got: \"NOTGOOD\n100.25.35.6\n0:0:4700:0:0:FFFF:0119:2306\nNOCHANGE\".\nThis may happen because Duck DNS has changed the format of the response body and this implementation hasn't been updated, please report to the maintainers."
     )]
     fn test_parse_response_body_unexpected_operation() {
         let body = r"NOTGOOD
@@ -727,7 +725,7 @@ NOCHANGE";
 
     #[test]
     #[should_panic(
-        expected = "unexpected duckdns response body, got: \"OK\n100.25.35.6\n0:0:4700:0:0:FFFF:0119:2306\".\nThis may happen because duckdns has changed the format of the response body and this implementation hasn't been updated, please report to the maintainers."
+        expected = "unexpected Duck DNS response body, got: \"OK\n100.25.35.6\n0:0:4700:0:0:FFFF:0119:2306\".\nThis may happen because Duck DNS has changed the format of the response body and this implementation hasn't been updated, please report to the maintainers."
     )]
     fn test_parse_response_body_unexpected_change_status() {
         let body = r"OK
@@ -738,7 +736,7 @@ NOCHANGE";
 
     #[test]
     #[should_panic(
-        expected = "unexpected duckdns response body, got: \"OK,100.25.35.6,0:0:4700:0:0:FFFF:0119:2306,NOCHANGE\".\nThis may happen because duckdns has changed the format of the response body and this implementation hasn't been updated, please report to the maintainers."
+        expected = "unexpected Duck DNS response body, got: \"OK,100.25.35.6,0:0:4700:0:0:FFFF:0119:2306,NOCHANGE\".\nThis may happen because Duck DNS has changed the format of the response body and this implementation hasn't been updated, please report to the maintainers."
     )]
     fn test_parse_response_body_unexpected_response_body() {
         let body = "OK,100.25.35.6,0:0:4700:0:0:FFFF:0119:2306,NOCHANGE";
