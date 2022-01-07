@@ -83,13 +83,17 @@ impl<'a> Updater<'a> {
             .await
             .map_err(Error::from_isahc)?;
 
-        if response.status() != http::StatusCode::OK {
-            return Err(Error::Provider(ExternalService::Internal {
-                reason: format!(
-                    r#"Duck DNS service has responded with an HTTP "{}" status code (expected 200)"#,
-                    response.status(),
-                ),
-            }));
+        if !response.status().is_success() {
+            if response.status().is_server_error() {
+                return Err(Error::Provider(ExternalService::Internal {
+                    reason: format!(
+                        r#"Duck DNS service has responded with an HTTP "{}" status code (expected 200)"#,
+                        response.status(),
+                    ),
+                }));
+            }
+
+            panic!("BUG (please report it): this implementation is outdated, the external service has changed its public API.");
         }
 
         let body = response.text().await.map_err(|err| {
@@ -213,6 +217,9 @@ enum ResponseBody {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    use rand::rngs::SmallRng;
+    use rand::{Rng, SeedableRng};
     use tokio;
     use wiremock::matchers::{method, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -310,15 +317,70 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_update_record_a_response_500() {
-        let domain = "test-500";
+    #[should_panic(
+        expected = "BUG (please report it): this implementation is outdated, the external service has changed its public API."
+    )]
+    async fn test_update_record_a_response_3xx() {
+        let domain = "test-3xx";
         let ip = net::Ipv4Addr::new(1, 1, 1, 1);
+
+        let mut rng = SmallRng::from_entropy();
+        let status_code = rng.gen_range(300..=304);
 
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(query_param("domains", domain))
             .and(query_param("ip", ip.to_string()))
-            .respond_with(ResponseTemplate::new(500))
+            .respond_with(ResponseTemplate::new(status_code))
+            .mount(&server)
+            .await;
+
+        let uri = server.uri();
+        let updater = Updater::with_base_url(TOKEN, &uri);
+        let _ = updater
+            .update_record_a(vec![domain].as_slice(), Some(ip), None)
+            .await;
+    }
+
+    #[tokio::test]
+    #[should_panic(
+        expected = "BUG (please report it): this implementation is outdated, the external service has changed its public API."
+    )]
+    async fn test_update_record_a_response_4xx() {
+        let domain = "test-4xx";
+        let ip = net::Ipv4Addr::new(1, 1, 1, 1);
+
+        let mut rng = SmallRng::from_entropy();
+        let status_code = rng.gen_range(401..=409);
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(query_param("domains", domain))
+            .and(query_param("ip", ip.to_string()))
+            .respond_with(ResponseTemplate::new(status_code))
+            .mount(&server)
+            .await;
+
+        let uri = server.uri();
+        let updater = Updater::with_base_url(TOKEN, &uri);
+        let _ = updater
+            .update_record_a(vec![domain].as_slice(), Some(ip), None)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn test_update_record_a_response_5xx() {
+        let domain = "test-500";
+        let ip = net::Ipv4Addr::new(1, 1, 1, 1);
+
+        let mut rng = SmallRng::from_entropy();
+        let status_code = rng.gen_range(500..=508);
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(query_param("domains", domain))
+            .and(query_param("ip", ip.to_string()))
+            .respond_with(ResponseTemplate::new(status_code))
             .mount(&server)
             .await;
 
@@ -331,7 +393,10 @@ mod test {
         {
             assert_eq!(
                 reason,
-                r#"Duck DNS service has responded with an HTTP "500 Internal Server Error" status code (expected 200)"#,
+                format!(
+                    r#"Duck DNS service has responded with an HTTP "{}" status code (expected 200)"#,
+                    http::StatusCode::from_u16(status_code).unwrap(),
+                ),
                 "expected provider internal error",
             );
         } else {
