@@ -13,9 +13,9 @@ http = "~0.2.4"
 isahc = "~1.5.1"
 lazy_static = "~1.4.0"
 regex = "~1.4.2"
+tokio = { version = "1.13.0", features = ["macros", "rt"] }
 url = "~2.2.0"
 
 [dev-dependencies]
-tokio = { version = "1.13.0", features = ["macros"] }
 wiremock = "~0.5.8"
 rand = { version = "0.8.3", default-features = false, features = [ "getrandom", "small_rng"] }
