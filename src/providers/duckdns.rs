@@ -2,7 +2,7 @@
 
 use super::error::Error;
 use super::Response;
-use crate::error::{Args as ErrArgs, BoxError, Error as ErrorCommon, ExternalService};
+use crate::error::{Args as ErrArgs, BoxError, Error as ErrorCommon, ExternalService, NetworkSide};
 
 use std::net;
 
@@ -91,6 +91,16 @@ impl<'a> Updater<'a> {
                         response.status(),
                     ),
                 }));
+            }
+
+            if response.status() == http::StatusCode::BAD_REQUEST {
+                return Err(Error::Common(ErrorCommon::network(
+                    BoxError::from(
+                        r#"Duck DNS service has returned "400 Bad Request" HTTP status code"#,
+                    ),
+                    NetworkSide::Client,
+                    true,
+                )));
             }
 
             panic!("BUG (please report it): this implementation is outdated, the external service has changed its public API.");
@@ -218,6 +228,8 @@ enum ResponseBody {
 mod test {
     use super::*;
 
+    use std::error::Error as StdError;
+
     use rand::rngs::SmallRng;
     use rand::{Rng, SeedableRng};
     use tokio;
@@ -340,6 +352,39 @@ mod test {
         let _ = updater
             .update_record_a(vec![domain].as_slice(), Some(ip), None)
             .await;
+    }
+
+    #[tokio::test]
+    async fn test_update_record_a_response_400() {
+        let domain = "test-400";
+        let ip = net::Ipv4Addr::new(1, 1, 1, 1);
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(400))
+            .mount(&server)
+            .await;
+
+        let uri = &server.uri();
+        let updater = Updater::with_base_url(TOKEN, &uri);
+        if let Error::Common(ErrorCommon::Network(details)) = updater
+            .update_record_a(vec![domain].as_slice(), Some(ip), None)
+            .await
+            .expect_err("HTTP 400 must return an error")
+        {
+            assert_eq!(details.side, NetworkSide::Client, "network side");
+            assert!(details.should_retry, "should retry");
+            assert_eq!(
+                r#"Duck DNS service has returned "400 Bad Request" HTTP status code"#,
+                format!(
+                    "{}",
+                    details.source().expect("Inner error must not be None")
+                ),
+                "expected finder internal error"
+            );
+        } else {
+            panic!("expected a finder error")
+        }
     }
 
     #[tokio::test]
