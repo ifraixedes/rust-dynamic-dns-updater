@@ -1,12 +1,14 @@
-//! TODO: document the crate
+//! Command-line tool entry point.
 
 #![deny(missing_docs)]
 
+use clap::Parser;
+
+mod cli;
 mod error;
 mod finders;
 mod providers;
 
-#[allow(unused_imports)]
-use crate::providers::duckdns;
-
-fn main() {}
+fn main() {
+    let _ = cli::App::parse();
+}

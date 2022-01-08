@@ -1,14 +1,15 @@
 [package]
-name = "dynamic-dns-updater"
+name = "dyndu"
 version = "0.1.0"
 authors = ["Ivan Fraixedes <ivan@fraixed.es>"]
 edition = "2021"
-description = "command line tool for updating IP addresses of several dynamic DNS providers"
+description = "Command-line tool for updating the registered IP of dynamic DNS providers"
 license-file = "LICENSE"
 keywords = ["dynamic-dns"]
 categories = ["command-line-utilities"]
 
 [dependencies]
+clap = { version = "~3.0.5", features = [ "derive" ] }
 http = "~0.2.4"
 isahc = "~1.5.1"
 lazy_static = "~1.4.0"
@@ -17,5 +18,5 @@ tokio = { version = "1.13.0", features = ["macros", "rt"] }
 url = "~2.2.0"
 
 [dev-dependencies]
-wiremock = "~0.5.8"
 rand = { version = "0.8.3", default-features = false, features = [ "getrandom", "small_rng"] }
+wiremock = "~0.5.8"
