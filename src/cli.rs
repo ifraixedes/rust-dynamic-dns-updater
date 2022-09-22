@@ -13,7 +13,7 @@ pub struct App {
 }
 
 #[derive(Subcommand)]
-enum Command {
+pub enum Command {
     /// Update the DNS of the indicated providers.
     ///
     /// It uses the passed IP otherwise the public IP of this machine revealed
@@ -39,9 +39,9 @@ enum Command {
 
 /// Supported providers.
 #[derive(Args)]
-struct Providers {
+pub struct Providers {
     /// Duck DNS provider.
-    duck_dns: Option<DuckDns>,
+    pub duck_dns: Option<DuckDns>,
 }
 
 impl std::str::FromStr for Providers {
@@ -60,10 +60,11 @@ impl std::str::FromStr for Providers {
     }
 }
 
+/// Duck DNS provider configuration parameters.
 #[derive(Debug)]
-struct DuckDns {
+pub struct DuckDns {
     /// The API key to use.
-    key: String,
+    pub key: String,
 }
 
 impl std::str::FromStr for DuckDns {
@@ -72,11 +73,11 @@ impl std::str::FromStr for DuckDns {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let field = parse_field(s).map_err(|_| "'key' field is required")?;
         match field {
-            ("key", Some("")) => Err(String::from("'key' must have a non-empty value")),
+            ("key", Some("")) => Err(String::from("'key' field must have a non-empty value")),
             ("key", Some(val)) => Ok(Self {
                 key: val.to_owned(),
             }),
-            ("key", _) => Err(String::from("'key' must have a non-empty value")),
+            ("key", _) => Err(String::from("'key' field must have a value")),
             (name, _) => Err(format!(
                 "unrecognized field: '{}'. Only 'key' field is accepted and required",
                 name
@@ -86,7 +87,7 @@ impl std::str::FromStr for DuckDns {
 }
 
 #[derive(ArgEnum, Clone)]
-enum Finder {
+pub enum Finder {
     Ipify,
 }
 
@@ -353,10 +354,7 @@ mod test {
             // Error: Key field with empty value.
             let i = "key=";
             let err = DuckDns::from_str(i).expect_err("key field with empty value");
-            assert_eq!(
-                &err.to_string(),
-                "'key' field must have a value a non-empty value"
-            );
+            assert_eq!(&err.to_string(), "'key' field must have a non-empty value");
         }
     }
 
