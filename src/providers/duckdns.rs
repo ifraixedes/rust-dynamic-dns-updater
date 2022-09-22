@@ -15,7 +15,7 @@ use url::Url;
 /// The DNS update for the Duck DNS provider.
 pub struct Updater<'a> {
     /// The authorization API token.
-    token: &'a str,
+    token: String,
     /// The API base URL to use.
     base_url: &'a str,
     /// The HTTP client that the instance use for making the requests.
@@ -24,13 +24,13 @@ pub struct Updater<'a> {
 
 impl<'a> Updater<'a> {
     /// Creates a Duck DNS updater using the specified API token.
-    pub fn new(token: &'a str) -> Self {
+    pub fn new(token: &str) -> Self {
         Self::with_base_url(token, "https://www.duckdns.org/update?verbose=true")
     }
 
     /// Creates a Duck DNS updater using the specified API token and base URL.
     /// This constructor is mainly useful for testing purposes.
-    fn with_base_url(token: &'a str, base_url: &'a str) -> Self {
+    fn with_base_url(token: &str, base_url: &'a str) -> Self {
         let http_cli = isahc::HttpClientBuilder::new()
             .max_connections(2)
             .connection_cache_size(2)
@@ -341,6 +341,7 @@ mod test {
 
         let server = MockServer::start().await;
         Mock::given(method("GET"))
+            .and(query_param("token", TOKEN))
             .and(query_param("domains", domain))
             .and(query_param("ip", ip.to_string()))
             .respond_with(ResponseTemplate::new(status_code))
@@ -400,6 +401,7 @@ mod test {
 
         let server = MockServer::start().await;
         Mock::given(method("GET"))
+            .and(query_param("token", TOKEN))
             .and(query_param("domains", domain))
             .and(query_param("ip", ip.to_string()))
             .respond_with(ResponseTemplate::new(status_code))
@@ -423,6 +425,7 @@ mod test {
 
         let server = MockServer::start().await;
         Mock::given(method("GET"))
+            .and(query_param("token", TOKEN))
             .and(query_param("domains", domain))
             .and(query_param("ip", ip.to_string()))
             .respond_with(ResponseTemplate::new(status_code))
@@ -456,6 +459,7 @@ mod test {
 
         let server = MockServer::start().await;
         Mock::given(method("GET"))
+            .and(query_param("token", TOKEN))
             .and(query_param("domains", domain))
             .and(query_param("ip", ip.to_string()))
             .respond_with(ResponseTemplate::new(200).set_body_string("KO"))
@@ -488,6 +492,7 @@ mod test {
             let body = format!("{}\n{}\n\n{}", "OK", "1.1,1.1", "UPDATED");
             let server = MockServer::start().await;
             Mock::given(method("GET"))
+                .and(query_param("token", TOKEN))
                 .and(query_param("domains", domain))
                 .and(query_param("ip", ip.to_string()))
                 .respond_with(ResponseTemplate::new(200).set_body_string(body))
@@ -514,6 +519,7 @@ mod test {
             let body = format!("{}\n\n{}\n{}", "OK", "0:0:0:0:0:FFFF:0101:0101", "UPDATED");
             let server = MockServer::start().await;
             Mock::given(method("GET"))
+                .and(query_param("token", TOKEN))
                 .and(query_param("domains", domain))
                 .and(query_param("ipv6", ip.to_string()))
                 .respond_with(ResponseTemplate::new(200).set_body_string(body))
@@ -544,6 +550,7 @@ mod test {
             );
             let server = MockServer::start().await;
             Mock::given(method("GET"))
+                .and(query_param("token", TOKEN))
                 .and(query_param("domains", domain))
                 .and(query_param("ip", ipv4.to_string()))
                 .and(query_param("ipv6", ipv6.to_string()))
@@ -571,6 +578,7 @@ mod test {
             let body = format!("{}\n{}\n\n{}", "OK", "1.1,1.1", "NOCHANGE");
             let server = MockServer::start().await;
             Mock::given(method("GET"))
+                .and(query_param("token", TOKEN))
                 .and(query_param("domains", domain))
                 .and(query_param("ip", ip.to_string()))
                 .respond_with(ResponseTemplate::new(200).set_body_string(body))
@@ -597,6 +605,7 @@ mod test {
             let body = format!("{}\n\n{}\n{}", "OK", "0:0:0:0:0:FFFF:0101:0101", "NOCHANGE");
             let server = MockServer::start().await;
             Mock::given(method("GET"))
+                .and(query_param("token", TOKEN))
                 .and(query_param("domains", domain))
                 .and(query_param("ipv6", ip.to_string()))
                 .respond_with(ResponseTemplate::new(200).set_body_string(body))
@@ -627,6 +636,7 @@ mod test {
             );
             let server = MockServer::start().await;
             Mock::given(method("GET"))
+                .and(query_param("token", TOKEN))
                 .and(query_param("domains", domain))
                 .and(query_param("ip", ipv4.to_string()))
                 .and(query_param("ipv6", ipv6.to_string()))
