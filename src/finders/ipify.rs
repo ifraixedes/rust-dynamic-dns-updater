@@ -1,6 +1,6 @@
 //! Implementation for using with "ipify" services.
 
-use super::Error;
+use super::{Error, PublicIps};
 use crate::error::{BoxError, Error as ErrorCommon, ExternalService, NetworkSide};
 
 use std::{
@@ -8,6 +8,7 @@ use std::{
     str::FromStr,
 };
 
+use async_trait::async_trait;
 use isahc::AsyncReadResponseExt;
 
 /// The public IP finder for the "ipify" provider.
@@ -43,55 +44,8 @@ impl<'a> Finder<'a> {
         }
     }
 
-    /// Gets the IP V4 public IP where the machines is running behind.
-    pub async fn ipv4<'b>(&self) -> Result<Ipv4Addr, Error<'b>> {
-        let mut response = self.send_request(self.base_url_v4).await?;
-        let body = response.text().await.map_err(|err| {
-            Error::Common(ErrorCommon::internal(
-                "error while reading the response body as text",
-                BoxError::from(err),
-            ))
-        })?;
-
-        Ok(Ipv4Addr::from_str(&body).unwrap_or_else(|_| panic!(
-                r#"BUG (please report it). Unexpected ipify response body for IP v4, got: "{}".
-This may have happened because ipify has changed the format of the response body and this implementation hasn't been updated."#,
-        body)))
-    }
-
-    /// Gets the IP V6 public IP where the machines is running behind.
-    pub async fn ipv6<'b>(&self) -> Result<Ipv6Addr, Error<'b>> {
-        let mut response = self.send_request(self.base_url_v6).await?;
-        let body = response.text().await.map_err(|err| {
-            Error::Common(ErrorCommon::internal(
-                "error while reading the response body as text",
-                BoxError::from(err),
-            ))
-        })?;
-
-        Ok(Ipv6Addr::from_str(&body).unwrap_or_else(|_| panic!(
-                r#"BUG (please report it). Unexpected ipify response body for IP v6, got: "{}".
-This may have happened because ipify has changed the format of the response body and this implementation hasn't been updated."#,
-        body)))
-    }
-
-    /// Gets the IP V4 & V6 public IPs where the machines is running behind.
-    pub async fn ips<'b>(&self) -> Result<(Ipv4Addr, Ipv6Addr), Error<'b>> {
-        let (ipv4, ipv6) = tokio::join!(self.ipv4(), self.ipv6());
-
-        if let Err(e) = ipv4 {
-            return Err(e);
-        }
-
-        if let Err(e) = ipv6 {
-            return Err(e);
-        }
-
-        Ok((ipv4.unwrap(), ipv6.unwrap()))
-    }
-
-    /// Sends a request to `url` and map errors and some response HTTP status
-    /// codes to errors according the ipify API.
+    /// Sends a request to `url` and map errors and some response HTTP status codes to errors
+    /// according to the ipify API.
     async fn send_request<'b>(
         &self,
         url: &str,
@@ -126,6 +80,56 @@ This may have happened because ipify has changed the format of the response body
         }
 
         Ok(response)
+    }
+}
+
+#[async_trait]
+impl PublicIps for Finder<'_> {
+    /// Gets the IP V4 public IP of the machine.
+    async fn ipv4<'b>(&self) -> Result<Ipv4Addr, Error<'b>> {
+        let mut response = self.send_request(self.base_url_v4).await?;
+        let body = response.text().await.map_err(|err| {
+            Error::Common(ErrorCommon::internal(
+                "error while reading the response body as text",
+                BoxError::from(err),
+            ))
+        })?;
+
+        Ok(Ipv4Addr::from_str(&body).unwrap_or_else(|_| panic!(
+                r#"BUG (please report it). Unexpected ipify response body for IP v4, got: "{}".
+This may have happened because ipify has changed the format of the response body and this implementation hasn't been updated."#,
+        body)))
+    }
+
+    /// Gets the IP V6 public IP of the machine.
+    async fn ipv6<'b>(&self) -> Result<Ipv6Addr, Error<'b>> {
+        let mut response = self.send_request(self.base_url_v6).await?;
+        let body = response.text().await.map_err(|err| {
+            Error::Common(ErrorCommon::internal(
+                "error while reading the response body as text",
+                BoxError::from(err),
+            ))
+        })?;
+
+        Ok(Ipv6Addr::from_str(&body).unwrap_or_else(|_| panic!(
+                r#"BUG (please report it). Unexpected ipify response body for IP v6, got: "{}".
+This may have happened because ipify has changed the format of the response body and this implementation hasn't been updated."#,
+        body)))
+    }
+
+    /// Gets the IP V4 and V6 public IPs  of the machine.
+    async fn ips<'b>(&self) -> Result<(Ipv4Addr, Ipv6Addr), Error<'b>> {
+        let (ipv4, ipv6) = tokio::join!(self.ipv4(), self.ipv6());
+
+        if let Err(e) = ipv4 {
+            return Err(e);
+        }
+
+        if let Err(e) = ipv6 {
+            return Err(e);
+        }
+
+        Ok((ipv4.unwrap(), ipv6.unwrap()))
     }
 }
 

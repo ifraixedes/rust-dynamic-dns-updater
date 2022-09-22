@@ -1,11 +1,12 @@
 //! Implementation for using with Duck DNS services.
 
-use super::error::Error;
 use super::Response;
+use super::{error::Error, ARecord};
 use crate::error::{Args as ErrArgs, BoxError, Error as ErrorCommon, ExternalService, NetworkSide};
 
-use std::net;
+use std::net::{Ipv4Addr, Ipv6Addr};
 
+use async_trait::async_trait;
 use isahc::AsyncReadResponseExt;
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -38,25 +39,116 @@ impl<'a> Updater<'a> {
             .expect("HTTP client initialization error, this due to a bug in this crate, please report it");
 
         Updater {
-            token,
+            token: String::from(token),
             base_url,
             http_cli,
         }
     }
 
-    /// Updates the A DNS record for the passed domains to the passed IP V4 and
-    /// V6.
-    /// At least one domain must be passed and IP V4 or V6 or both, otherwise
-    /// an `Error:InvalidArguments` is returned.
-    /// Valid domains are case-insensitive and can only contains letters (A-Z),
-    /// numbers (0-9), and dashes (-).
-    pub async fn update_record_a<'b>(
+    /// Convert the list of domains to a valid string for sending it to Duck DNS.
+    fn domains_as_param<'b, 'c>(domains: &'b [&str]) -> Result<(&'static str, String), Error<'c>> {
+        if domains.is_empty() {
+            return Err(Error::Common(ErrorCommon::invalid_arguments(
+                "domains",
+                "domains cannot be empty, it must contain at least one domain name",
+            )));
+        }
+
+        match Self::validate_domain(domains[0]) {
+            Err(Error::Common(ErrorCommon::InvalidArguments(ErrArgs { msg, .. }))) => {
+                return Err(Error::Common(ErrorCommon::invalid_arguments(
+                    "domains[0]",
+                    &msg,
+                )));
+            }
+            Err(e) => panic!("Self::validate_domain returned an unexpected error: {}", e),
+            Ok(_) => {}
+        }
+
+        let mut idx = 1;
+        let val = domains
+            .iter()
+            .skip(1)
+            .try_fold(
+                String::from(domains[0]),
+                |mut acc, d| match Self::validate_domain(d) {
+                    Ok(_) => {
+                        acc.push(',');
+                        acc.push_str(d);
+                        idx += 1;
+                        Ok(acc)
+                    }
+                    Err(Error::Common(ErrorCommon::InvalidArguments(ErrArgs { msg, .. }))) => {
+                        Err(Error::Common(ErrorCommon::invalid_arguments(
+                            &format!("domains[{}]", idx),
+                            &msg,
+                        )))
+                    }
+                    Err(e) => panic!("Self::validate_domain returned an unexpected error: {}", e),
+                },
+            )?;
+
+        Ok(("domains", val))
+    }
+
+    /// Check if domain is a valid Duck DNS name.
+    /// A valid domain is case-insensitive and can only contains letters (A-Z), numbers (0-9), and
+    /// dashes (-).
+    fn validate_domain(domain: &str) -> Result<(), Error> {
+        lazy_static! {
+            static ref RE: Regex = Regex::new(r"(?i)^[a-z0-9\-]+$").unwrap();
+        }
+
+        if !RE.is_match(domain) {
+            return Err(
+                Error::Common(ErrorCommon::invalid_arguments(
+                    "domain",
+                    "a domain name can only contain 'a-z', '0-9' and '-' case insensitive characters and must have at least one character",
+                )),
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Parse the response body according Duck DNS expected format.
+    fn parse_response_body(body: &str) -> ResponseBody {
+        let mut iter = body.splitn(4, '\n');
+        if let Some(op_status) = iter.next() {
+            match op_status {
+                "OK" => {
+                    let mut iter = iter.skip(2);
+                    if let Some(change_status) = iter.next() {
+                        return ResponseBody::Success(change_status == "UPDATED");
+                    }
+                }
+                "KO" => return ResponseBody::Failed,
+                _ => {}
+            };
+        }
+
+        panic!(
+            r#"unexpected Duck DNS response body, got: "{}".
+This may happen because Duck DNS has changed the format of the response body and this implementation hasn't been updated, please report to the maintainers."#,
+            body
+        );
+    }
+}
+
+#[async_trait]
+impl ARecord for Updater<'_> {
+    /// Updates the A DNS record for the passed domains to the passed IP V4 and V6.
+    /// At least one domain must be passed and IP V4 or V6 or both, otherwise an
+    /// `Error:InvalidArguments` is returned.
+    /// Valid domains are case-insensitive and can only contains letters (A-Z), numbers (0-9), and
+    /// dashes (-).
+    async fn update_record_a<'a>(
         &self,
         domains: &[&str],
-        ipv4: Option<net::Ipv4Addr>,
-        ipv6: Option<net::Ipv6Addr>,
-    ) -> Result<Response, Error<'b>> {
-        let mut params = Vec::with_capacity(3);
+        ipv4: Option<Ipv4Addr>,
+        ipv6: Option<Ipv6Addr>,
+    ) -> Result<Response, Error<'a>> {
+        let mut params = Vec::with_capacity(4);
         params.push(Self::domains_as_param(domains)?);
 
         if ipv4.is_none() && ipv6.is_none() {
@@ -66,12 +158,14 @@ impl<'a> Updater<'a> {
             )));
         }
 
+        params.push(("token", self.token.clone()));
+
         if let Some(ip) = ipv4 {
-            params.push(("ip", ip.to_string()))
+            params.push(("ip", ip.to_string()));
         }
 
         if let Some(ip) = ipv6 {
-            params.push(("ipv6", ip.to_string()))
+            params.push(("ipv6", ip.to_string()));
         }
 
         let url = Url::parse_with_params(self.base_url, params)
@@ -120,105 +214,15 @@ impl<'a> Updater<'a> {
             ResponseBody::Failed => Err(Error::Provider(ExternalService::Unspecified)),
         }
     }
-
-    /// Convert the list of domains to a valid string for sending it to Duck
-    /// DNS.
-    fn domains_as_param<'b, 'c>(domains: &'b [&str]) -> Result<(&'static str, String), Error<'c>> {
-        if domains.is_empty() {
-            return Err(Error::Common(ErrorCommon::invalid_arguments(
-                "domains",
-                "domains cannot be empty, it must contain at least one domain name",
-            )));
-        }
-
-        match Self::validate_domain(domains[0]) {
-            Err(Error::Common(ErrorCommon::InvalidArguments(ErrArgs { msg, .. }))) => {
-                return Err(Error::Common(ErrorCommon::invalid_arguments(
-                    "domains[0]",
-                    &msg,
-                )));
-            }
-            Err(e) => panic!("Self::validate_domain returned an unexpected error: {}", e),
-            Ok(_) => {}
-        }
-
-        let mut idx = 1;
-        let val = domains
-            .iter()
-            .skip(1)
-            .try_fold(
-                String::from(domains[0]),
-                |mut acc, d| match Self::validate_domain(d) {
-                    Ok(_) => {
-                        acc.push(',');
-                        acc.push_str(d);
-                        idx += 1;
-                        Ok(acc)
-                    }
-                    Err(Error::Common(ErrorCommon::InvalidArguments(ErrArgs { msg, .. }))) => {
-                        Err(Error::Common(ErrorCommon::invalid_arguments(
-                            &format!("domains[{}]", idx),
-                            &msg,
-                        )))
-                    }
-                    Err(e) => panic!("Self::validate_domain returned an unexpected error: {}", e),
-                },
-            )?;
-
-        Ok(("domains", val))
-    }
-
-    /// Check if domain is a valid Duck DNS name.
-    /// A valid domain is case-insensitive and can only contains letters (A-Z),
-    /// numbers (0-9), and dashes (-).
-    fn validate_domain(domain: &str) -> Result<(), Error> {
-        lazy_static! {
-            static ref RE: Regex = Regex::new(r"(?i)^[a-z0-9\-]+$").unwrap();
-        }
-
-        if !RE.is_match(domain) {
-            return Err(
-                Error::Common(ErrorCommon::invalid_arguments(
-                    "domain",
-                    "a domain name can only contain 'a-z', '0-9' and '-' case insensitive characters and must have at least one character",
-                )),
-            );
-        }
-
-        Ok(())
-    }
-
-    /// Parse the response body according Duck DNS expected format.
-    fn parse_response_body(body: &str) -> ResponseBody {
-        let mut iter = body.splitn(4, '\n');
-        if let Some(op_status) = iter.next() {
-            match op_status {
-                "OK" => {
-                    let mut iter = iter.skip(2);
-                    if let Some(change_status) = iter.next() {
-                        return ResponseBody::Success(change_status == "UPDATED");
-                    }
-                }
-                "KO" => return ResponseBody::Failed,
-                _ => {}
-            };
-        }
-
-        panic!(
-            r#"unexpected Duck DNS response body, got: "{}".
-This may happen because Duck DNS has changed the format of the response body and this implementation hasn't been updated, please report to the maintainers."#,
-            body
-        );
-    }
 }
 
-/// Indicates that the request to DuckDNS responded with a 2XX HTTP code was
-/// successful or not based on the content of the response body.
+/// Indicates that the request to DuckDNS responded with a 2XX HTTP code was successful or not based
+/// on the content of the response body.
 #[derive(Debug, PartialEq)]
 enum ResponseBody {
-    /// Success indicates that the operation succeeded. When 'true' the operation
-    /// has made an update, when 'false' there was no update due to the sent
-    /// values were the same than the ones set.
+    /// Success indicates that the operation succeeded. When 'true' the operation has made an
+    /// update, when 'false' there was no update due to the sent values were the same than the ones
+    /// set.
     Success(bool),
     /// Failed indicates that the operation failed.
     Failed,
@@ -257,7 +261,7 @@ mod test {
                 (
                     vec![],
                     None,
-                    Some(net::Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)),
+                    Some(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)),
                 ),
                 ("domains", -1),
                 "domains cannot be empty, it must contain at least one domain name",
@@ -266,8 +270,8 @@ mod test {
             (
                 (
                     vec!["valid-domain", "an_invalid_domain"],
-                    Some(net::Ipv4Addr::new(0, 0, 0, 0)),
-                    Some(net::Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)),
+                    Some(Ipv4Addr::new(0, 0, 0, 0)),
+                    Some(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)),
                 ),
                 ("domains", 1),
                 "a domain name can only contain 'a-z', '0-9' and '-' case insensitive characters and must have at least one character",
@@ -304,11 +308,7 @@ mod test {
     async fn test_update_record_a_domain_do_not_resolve() {
         let updater = Updater::with_base_url(TOKEN, "https://duckdns.test/update?verbose=true");
         let err = updater
-            .update_record_a(
-                &["a-valid-domain"],
-                Some(net::Ipv4Addr::new(0, 0, 0, 0)),
-                None,
-            )
+            .update_record_a(&["a-valid-domain"], Some(Ipv4Addr::new(0, 0, 0, 0)), None)
             .await
             .expect_err("network error expected for a domain that cannot be resolved");
 
@@ -334,7 +334,7 @@ mod test {
     )]
     async fn test_update_record_a_response_3xx() {
         let domain = "test-3xx";
-        let ip = net::Ipv4Addr::new(1, 1, 1, 1);
+        let ip = Ipv4Addr::new(1, 1, 1, 1);
 
         let mut rng = SmallRng::from_entropy();
         let status_code = rng.gen_range(300..=304);
@@ -357,7 +357,7 @@ mod test {
     #[tokio::test]
     async fn test_update_record_a_response_400() {
         let domain = "test-400";
-        let ip = net::Ipv4Addr::new(1, 1, 1, 1);
+        let ip = Ipv4Addr::new(1, 1, 1, 1);
 
         let server = MockServer::start().await;
         Mock::given(method("GET"))
@@ -393,7 +393,7 @@ mod test {
     )]
     async fn test_update_record_a_response_4xx() {
         let domain = "test-4xx";
-        let ip = net::Ipv4Addr::new(1, 1, 1, 1);
+        let ip = Ipv4Addr::new(1, 1, 1, 1);
 
         let mut rng = SmallRng::from_entropy();
         let status_code = rng.gen_range(401..=409);
@@ -416,7 +416,7 @@ mod test {
     #[tokio::test]
     async fn test_update_record_a_response_5xx() {
         let domain = "test-500";
-        let ip = net::Ipv4Addr::new(1, 1, 1, 1);
+        let ip = Ipv4Addr::new(1, 1, 1, 1);
 
         let mut rng = SmallRng::from_entropy();
         let status_code = rng.gen_range(500..=508);
@@ -452,7 +452,7 @@ mod test {
     #[tokio::test]
     async fn test_update_record_a_response_200_ko() {
         let domain = "test-KO";
-        let ip = net::Ipv4Addr::new(1, 1, 1, 1);
+        let ip = Ipv4Addr::new(1, 1, 1, 1);
 
         let server = MockServer::start().await;
         Mock::given(method("GET"))
@@ -484,7 +484,7 @@ mod test {
 
         // Case: updating IP v4
         {
-            let ip = net::Ipv4Addr::new(1, 1, 1, 1);
+            let ip = Ipv4Addr::new(1, 1, 1, 1);
             let body = format!("{}\n{}\n\n{}", "OK", "1.1,1.1", "UPDATED");
             let server = MockServer::start().await;
             Mock::given(method("GET"))
@@ -510,7 +510,7 @@ mod test {
 
         // Case: updating IP v6
         {
-            let ip = net::Ipv6Addr::new(0, 0, 0, 0, 0, 0xFFFF, 0x0101, 0x0101);
+            let ip = Ipv6Addr::new(0, 0, 0, 0, 0, 0xFFFF, 0x0101, 0x0101);
             let body = format!("{}\n\n{}\n{}", "OK", "0:0:0:0:0:FFFF:0101:0101", "UPDATED");
             let server = MockServer::start().await;
             Mock::given(method("GET"))
@@ -536,8 +536,8 @@ mod test {
 
         // Case: updating IP v4 and v6
         {
-            let ipv4 = net::Ipv4Addr::new(1, 1, 1, 1);
-            let ipv6 = net::Ipv6Addr::new(0, 0, 0, 0, 0, 0xFFFF, 0x0101, 0x0101);
+            let ipv4 = Ipv4Addr::new(1, 1, 1, 1);
+            let ipv6 = Ipv6Addr::new(0, 0, 0, 0, 0, 0xFFFF, 0x0101, 0x0101);
             let body = format!(
                 "{}\n{}\n{}\n{}",
                 "OK", "1.1,1.1", "0:0:0:0:0:FFFF:0101:0101", "UPDATED"
@@ -567,7 +567,7 @@ mod test {
 
         // Case: not updating IP v4
         {
-            let ip = net::Ipv4Addr::new(1, 1, 1, 1);
+            let ip = Ipv4Addr::new(1, 1, 1, 1);
             let body = format!("{}\n{}\n\n{}", "OK", "1.1,1.1", "NOCHANGE");
             let server = MockServer::start().await;
             Mock::given(method("GET"))
@@ -593,7 +593,7 @@ mod test {
 
         // Case: not updating IP v6
         {
-            let ip = net::Ipv6Addr::new(0, 0, 0, 0, 0, 0xFFFF, 0x0101, 0x0101);
+            let ip = Ipv6Addr::new(0, 0, 0, 0, 0, 0xFFFF, 0x0101, 0x0101);
             let body = format!("{}\n\n{}\n{}", "OK", "0:0:0:0:0:FFFF:0101:0101", "NOCHANGE");
             let server = MockServer::start().await;
             Mock::given(method("GET"))
@@ -619,8 +619,8 @@ mod test {
 
         // Case: not updating IP v4 and v6
         {
-            let ipv4 = net::Ipv4Addr::new(1, 1, 1, 1);
-            let ipv6 = net::Ipv6Addr::new(0, 0, 0, 0, 0, 0xFFFF, 0x0101, 0x0101);
+            let ipv4 = Ipv4Addr::new(1, 1, 1, 1);
+            let ipv6 = Ipv6Addr::new(0, 0, 0, 0, 0, 0xFFFF, 0x0101, 0x0101);
             let body = format!(
                 "{}\n{}\n{}\n{}",
                 "OK", "1.1,1.1", "0:0:0:0:0:FFFF:0101:0101", "NOCHANGE"

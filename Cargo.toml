@@ -9,6 +9,7 @@ keywords = ["dynamic-dns"]
 categories = ["command-line-utilities"]
 
 [dependencies]
+async-trait = "0.1.50"
 clap = { version = "~3.0.5", features = [ "derive" ] }
 http = "~0.2.4"
 isahc = "~1.5.1"

@@ -223,6 +223,7 @@ dependencies = [
 name = "dyndu"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "clap",
  "http",
  "isahc",
