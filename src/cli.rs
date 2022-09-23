@@ -9,7 +9,7 @@ use std::vec::Vec;
 #[clap(author, name = "dynamic-dns-updater", version)]
 pub struct App {
     #[clap(subcommand)]
-    command: Command,
+    pub command: Command,
 }
 
 #[derive(Subcommand)]
@@ -86,7 +86,7 @@ impl std::str::FromStr for DuckDns {
     }
 }
 
-#[derive(ArgEnum, Clone)]
+#[derive(ArgEnum, Clone, Hash, Eq, PartialEq)]
 pub enum Finder {
     Ipify,
 }

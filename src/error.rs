@@ -18,11 +18,11 @@ pub type BoxError = Box<dyn stderr::Error + Send + Sync>;
 /// the modules of this crate.
 #[non_exhaustive]
 #[derive(Debug)]
-pub enum Error<'a> {
+pub enum Error {
     /// Identifies unexpected errors which happen because of the state of the
     /// system where the application is running, for example, insufficient
     /// resources, OS failures, etc.
-    Internal(Internal<'a>),
+    Internal(Internal),
     /// Identifies errors due to invalid arguments passed to function or methods
     /// or assigned values to configurations.
     InvalidArguments(Args),
@@ -33,7 +33,7 @@ pub enum Error<'a> {
     Network(Network),
 }
 
-impl<'a> Error<'a> {
+impl Error {
     /// Convenient constructor for creating an InvalidArguments Error.
     /// See [`Args`] documentation to know about the convention for the value of
     /// the `names` parameter because this constructor panics if they are
@@ -52,12 +52,15 @@ impl<'a> Error<'a> {
     }
 
     /// Convenient constructor for creating an Internal Error.
-    pub(crate) fn internal(ctx_msg: &'a str, error: BoxError) -> Self {
-        Self::Internal(Internal { ctx_msg, error })
+    pub(crate) fn internal(ctx_msg: &str, error: BoxError) -> Self {
+        Self::Internal(Internal {
+            ctx_msg: String::from(ctx_msg),
+            error,
+        })
     }
 }
 
-impl<'a> stderr::Error for Error<'a> {
+impl stderr::Error for Error {
     fn source(&self) -> Option<&(dyn stderr::Error + 'static)> {
         match self {
             Error::InvalidArguments { .. } => None,
@@ -67,7 +70,7 @@ impl<'a> stderr::Error for Error<'a> {
     }
 }
 
-impl<'a> fmt::Display for Error<'a> {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
             Error::InvalidArguments(a) => a.fmt(f),
@@ -160,21 +163,21 @@ impl fmt::Display for Args {
 /// An unexpected error which happens due to the state of the system where the
 /// application is running; for example, insufficient resources, OS failure,
 /// hardware failure, etc.
-pub struct Internal<'a> {
+pub struct Internal {
     /// A human friendly message to provide context of the error.
-    pub ctx_msg: &'a str,
+    pub ctx_msg: String,
     /// The received error which cannot be handled by the application and get
     /// wrapped by this instance.
     pub(crate) error: BoxError,
 }
 
-impl<'a> stderr::Error for Internal<'a> {
+impl stderr::Error for Internal {
     fn source(&self) -> Option<&(dyn stderr::Error + 'static)> {
         Some(self.error.as_ref())
     }
 }
 
-impl<'a> fmt::Display for Internal<'a> {
+impl fmt::Display for Internal {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(f, "{}", self.ctx_msg)
     }

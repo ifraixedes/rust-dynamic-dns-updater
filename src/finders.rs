@@ -14,11 +14,11 @@ use async_trait::async_trait;
 #[async_trait]
 pub trait PublicIps {
     /// Gets the IP V4 public IP of the machine.
-    async fn ipv4<'a>(&self) -> Result<Ipv4Addr, Error<'a>>;
+    async fn ipv4(&self) -> Result<Ipv4Addr, Error>;
 
     /// Gets the IP V6 public IP of the machine.
-    async fn ipv6<'a>(&self) -> Result<Ipv6Addr, Error<'a>>;
+    async fn ipv6(&self) -> Result<Ipv6Addr, Error>;
 
     /// Gets the IPs V4 and V6 public IP of the machine.
-    async fn ips<'a>(&self) -> Result<(Ipv4Addr, Ipv6Addr), Error<'a>>;
+    async fn ips(&self) -> Result<(Ipv4Addr, Ipv6Addr), Error>;
 }

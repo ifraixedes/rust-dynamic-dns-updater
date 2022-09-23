@@ -46,7 +46,7 @@ impl<'a> Updater<'a> {
     }
 
     /// Convert the list of domains to a valid string for sending it to Duck DNS.
-    fn domains_as_param<'b, 'c>(domains: &'b [&str]) -> Result<(&'static str, String), Error<'c>> {
+    fn domains_as_param<'b>(domains: &'b [&str]) -> Result<(&'static str, String), Error> {
         if domains.is_empty() {
             return Err(Error::Common(ErrorCommon::invalid_arguments(
                 "domains",
@@ -142,12 +142,12 @@ impl ARecord for Updater<'_> {
     /// `Error:InvalidArguments` is returned.
     /// Valid domains are case-insensitive and can only contains letters (A-Z), numbers (0-9), and
     /// dashes (-).
-    async fn update_record_a<'a>(
+    async fn update_record_a(
         &self,
         domains: &[&str],
         ipv4: Option<Ipv4Addr>,
         ipv6: Option<Ipv6Addr>,
-    ) -> Result<Response, Error<'a>> {
+    ) -> Result<Response, Error> {
         let mut params = Vec::with_capacity(4);
         params.push(Self::domains_as_param(domains)?);
 

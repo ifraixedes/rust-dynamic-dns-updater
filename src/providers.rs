@@ -32,10 +32,10 @@ trait ARecord {
     /// Update the A DNS record for the indicated domains with the optional provided IP V4 and V6.
     /// Implementation must return an `Error::InvalidArguments` when any domain is indicated or any
     /// IP.
-    async fn update_record_a<'a>(
+    async fn update_record_a(
         &self,
         domains: &[&str],
         ipv4: Option<Ipv4Addr>,
         ipv6: Option<Ipv6Addr>,
-    ) -> Result<Response, Error<'a>>;
+    ) -> Result<Response, Error>;
 }

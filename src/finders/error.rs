@@ -13,15 +13,15 @@ use isahc::error::Error as IsahcError;
 /// descendants modules](crate::finders).
 #[non_exhaustive]
 #[derive(Debug)]
-pub enum Error<'a> {
+pub enum Error {
     /// Common error kinds which are shared across all the modules of this
     /// crate.
-    Common(ErrorCommon<'a>),
+    Common(ErrorCommon),
     /// Identifies error returned by the finder.
     Finder(ExternalService),
 }
 
-impl Error<'_> {
+impl Error {
     /// Convenient constructor for creating the appropriated Error from the
     /// Error type of the isahc module.
     pub(super) fn from_isahc(err: IsahcError) -> Self {
@@ -66,7 +66,7 @@ impl Error<'_> {
     }
 }
 
-impl<'a> stderr::Error for Error<'a> {
+impl stderr::Error for Error {
     fn source(&self) -> Option<&(dyn stderr::Error + 'static)> {
         match self {
             Error::Common(c) => c.source(),
@@ -75,7 +75,7 @@ impl<'a> stderr::Error for Error<'a> {
     }
 }
 
-impl<'a> fmt::Display for Error<'a> {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match self {
             Error::Common(c) => c.fmt(f),

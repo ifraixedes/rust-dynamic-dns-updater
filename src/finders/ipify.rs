@@ -46,10 +46,7 @@ impl<'a> Finder<'a> {
 
     /// Sends a request to `url` and map errors and some response HTTP status codes to errors
     /// according to the ipify API.
-    async fn send_request<'b>(
-        &self,
-        url: &str,
-    ) -> Result<isahc::Response<isahc::AsyncBody>, Error<'b>> {
+    async fn send_request(&self, url: &str) -> Result<isahc::Response<isahc::AsyncBody>, Error> {
         let response = self
             .http_cli
             .get_async(url)
@@ -86,7 +83,7 @@ impl<'a> Finder<'a> {
 #[async_trait]
 impl PublicIps for Finder<'_> {
     /// Gets the IP V4 public IP of the machine.
-    async fn ipv4<'b>(&self) -> Result<Ipv4Addr, Error<'b>> {
+    async fn ipv4(&self) -> Result<Ipv4Addr, Error> {
         let mut response = self.send_request(self.base_url_v4).await?;
         let body = response.text().await.map_err(|err| {
             Error::Common(ErrorCommon::internal(
@@ -102,7 +99,7 @@ This may have happened because ipify has changed the format of the response body
     }
 
     /// Gets the IP V6 public IP of the machine.
-    async fn ipv6<'b>(&self) -> Result<Ipv6Addr, Error<'b>> {
+    async fn ipv6(&self) -> Result<Ipv6Addr, Error> {
         let mut response = self.send_request(self.base_url_v6).await?;
         let body = response.text().await.map_err(|err| {
             Error::Common(ErrorCommon::internal(
@@ -118,7 +115,7 @@ This may have happened because ipify has changed the format of the response body
     }
 
     /// Gets the IP V4 and V6 public IPs  of the machine.
-    async fn ips<'b>(&self) -> Result<(Ipv4Addr, Ipv6Addr), Error<'b>> {
+    async fn ips(&self) -> Result<(Ipv4Addr, Ipv6Addr), Error> {
         let (ipv4, ipv6) = tokio::join!(self.ipv4(), self.ipv6());
 
         if let Err(e) = ipv4 {
