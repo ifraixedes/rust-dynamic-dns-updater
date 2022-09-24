@@ -65,24 +65,67 @@ impl std::str::FromStr for Providers {
 pub struct DuckDns {
     /// The API key to use.
     pub key: String,
+    /// The list of domains to update their IP.
+    pub domains: Vec<String>,
 }
 
 impl std::str::FromStr for DuckDns {
     type Err = String;
 
+    /// Parse the Duck DNS configuration string representation.
+    ///
+    /// A correct string representation contains `key` and `domains` fields (both are required and
+    /// are the only accepted ones) with a non-empty value, e.g.
+    /// `key=jdnheidhdtenc45d8ads,domains=ifraixedes`.
+    /// `domains` is a comma separated list of domains.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let field = parse_field(s).map_err(|_| "'key' field is required")?;
-        match field {
-            ("key", Some("")) => Err(String::from("'key' field must have a non-empty value")),
-            ("key", Some(val)) => Ok(Self {
-                key: val.to_owned(),
-            }),
-            ("key", _) => Err(String::from("'key' field must have a value")),
-            (name, _) => Err(format!(
-                "unrecognized field: '{}'. Only 'key' field is accepted and required",
-                name
-            )),
+        let fields = parse_fields_list(s)?;
+        if fields.len() != 2 {
+            return Err(String::from(
+                "Duck DNS provider requires and accepts exactly 2 fields, 'key' and 'domains'",
+            ));
         }
+
+        // We assume that fields contains the key and at least one domains fields.
+        let mut duckdns = DuckDns {
+            key: String::new(),
+            domains: Vec::with_capacity(fields.len() - 1),
+        };
+
+        for field in fields {
+            match field.0.as_str() {
+                "key" => {
+                    match field.1 {
+                        Some(val) if !val.is_empty() => duckdns.key=  String::from(val),
+                        _ => return Err(String::from("'key' field must have a value and cannot be empty")),
+                    }
+                },
+                "domains" => {
+                    match field.1 {
+                        Some(val) if !val.is_empty() => {
+                            for d in val.split(",") {
+                                // This case happens if the list contains an empty element, e.g.
+                                // 1. `ifraixedes,`
+                                // 2. `,ifraixedes`
+                                // 3. `ifraixedes,,rust`
+                                if d.is_empty() {
+                                    return Err(String::from("'domains' cannot contain an empty domain name"));
+                                }
+                                duckdns.domains.push(String::from(d));
+                            }
+                        },
+                        _ => return Err(String::from("'domains' field must have a value and cannot be empty")),
+                    }
+                },
+                name => return Err(format!(
+                        "unrecognized field: '{}'. Only 'key' and 'domains' fields are accepted and required",
+                        name
+                    ),
+                ),
+            }
+        }
+
+        Ok(duckdns)
     }
 }
 
@@ -330,31 +373,78 @@ mod test {
     #[test]
     fn test_duck_dns() {
         {
-            // OK.
-            let i = "key=test-key";
-            let p = DuckDns::from_str(i).unwrap_or_else(|_| panic!("'{}' is a valid input", i));
+            // OK: 1 domain.
+            let i = "key=test-key,domains=ifraixedes";
+            let p =
+                DuckDns::from_str(i).unwrap_or_else(|e| panic!("'{}' is a valid input. {}", i, e));
             assert_eq!(p.key, "test-key", "not properly parsed API key");
+            assert_eq!(1, p.domains.len(), "domains length");
+            assert_eq!("ifraixedes", p.domains[0], "ifraixedes domains");
         }
         {
-            // Error: No key field.
-            let i = "api-key=test-key";
-            let err = DuckDns::from_str(i).expect_err("no key field");
+            // OK: more than 1 domain.
+            let i = r#"key=test-key,domains="rust,ifraixedes""#;
+            let p =
+                DuckDns::from_str(i).unwrap_or_else(|e| panic!("'{}' is a valid input. {}", i, e));
+            assert_eq!(p.key, "test-key", "not properly parsed API key");
+            assert_eq!(2, p.domains.len(), "domains length");
+            assert_eq!("rust", p.domains[0], "rust domain");
+            assert_eq!("ifraixedes", p.domains[1], "ifraixedes domain");
+        }
+        {
+            // Error: unrecognized field
+            let i = "key=test-key,some=value,domains=ifraixedes";
+            let err = DuckDns::from_str(i).expect_err("unrecognized field");
             assert_eq!(
                 &err.to_string(),
-                "unrecognized field: 'api-key'. Only 'key' field is accepted and required"
+                "unrecognized field: 'some'. Only 'key' 'domains' field are accepted and required"
             );
         }
+        {
+            // Error: less than 1 field
+            let i = "api-key=test-key";
+            let err = DuckDns::from_str(i).expect_err("less than 1 field");
+            assert_eq!(
+                &err.to_string(),
+                "Duck DNS provider requires and accepts exactly 2 fields "
+            );
+        }
+        // TODO: fix the following tests
         {
             // Error: Key field without value.
             let i = "key";
             let err = DuckDns::from_str(i).expect_err("key field without value");
-            assert_eq!(&err.to_string(), "'key' field must have a value");
+            assert_eq!(
+                &err.to_string(),
+                "'key' field must have a value and cannot be empty"
+            );
         }
         {
             // Error: Key field with empty value.
-            let i = "key=";
+            let i = "key=,domains";
             let err = DuckDns::from_str(i).expect_err("key field with empty value");
-            assert_eq!(&err.to_string(), "'key' field must have a non-empty value");
+            assert_eq!(
+                &err.to_string(),
+                "'key' field must have a value and cannot be empty"
+            );
+        }
+        {
+            // Error: domains field without value.
+            let i = "domains,key";
+            let err = DuckDns::from_str(i).expect_err("key field without value");
+            assert_eq!(
+                &err.to_string(),
+                "'domains' field must have a value and cannot be empty"
+            );
+        }
+        {
+            // Error: domains field with empty value.
+            let i = "domains=";
+            let err = DuckDns::from_str(i).expect_err("key field with empty value");
+            assert_eq!(
+                &err.to_string(),
+                "'domains' field must have a value and cannot be empty"
+            );
         }
     }
 
@@ -682,6 +772,27 @@ mod test {
             assert_eq!(l[6].1, None, "not properly parsed field's value");
             assert_eq!(l[7].0, "e", "not properly parsed field's name");
             assert_eq!(l[7].1, None, "not properly parsed field's value");
+        }
+        {
+            // OK: repeated fields
+            let i = "field1=one,field2=two,field1";
+            let l = parse_fields_list(i).unwrap_or_else(|_| panic!("'{}' is a valid input", i));
+
+            assert_eq!(l.len(), 3, "repeated fields count as single ones");
+            assert_eq!(l[0].0, "field1", "not properly parsed field's name");
+            assert_eq!(
+                l[0].1,
+                Some(String::from("one")),
+                "not properly parsed field's value"
+            );
+            assert_eq!(l[1].0, "field2", "not properly parsed field's name");
+            assert_eq!(
+                l[1].1,
+                Some(String::from("two")),
+                "not properly parsed field's value"
+            );
+            assert_eq!(l[2].0, "field1", "not properly parsed field's name");
+            assert_eq!(l[2].1, None, "not properly parsed field's value");
         }
         {
             // Invalid (no error): field's name with impaired quotes (starts, not ends).
